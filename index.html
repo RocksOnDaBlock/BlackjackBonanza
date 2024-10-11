@@ -26,7 +26,7 @@
         }
 
         .container {
-            max-width: 1200px;
+            max-width: 100%;
             margin: 0 auto;
             padding: 20px;
         }
@@ -47,7 +47,7 @@
         .game-table {
             background-color: var(--felt-color);
             border-radius: 20px;
-            padding: 40px;
+            padding: 20px;
             box-shadow: 0 10px 20px rgba(0,0,0,0.3);
             position: relative;
             overflow: hidden;
@@ -57,18 +57,19 @@
             display: flex;
             justify-content: center;
             margin-bottom: 20px;
+            flex-wrap: wrap;
         }
 
         .card {
-            width: 100px;
-            height: 140px;
+            width: 80px;
+            height: 112px;
             background-color: var(--card-color);
             border-radius: 10px;
-            margin: 0 10px;
+            margin: 5px;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 2rem;
+            font-size: 1.5rem;
             box-shadow: 0 4px 8px rgba(0,0,0,0.2);
             transition: transform 0.3s ease;
         }
@@ -81,6 +82,7 @@
             display: flex;
             justify-content: center;
             margin-top: 20px;
+            flex-wrap: wrap;
         }
 
         button {
@@ -88,7 +90,7 @@
             color: var(--text-color);
             border: none;
             padding: 10px 20px;
-            margin: 0 10px;
+            margin: 5px;
             border-radius: 5px;
             cursor: pointer;
             transition: background-color 0.3s ease, transform 0.1s ease;
@@ -107,6 +109,7 @@
             display: flex;
             justify-content: center;
             margin-top: 20px;
+            flex-wrap: wrap;
         }
 
         .chip {
@@ -117,7 +120,7 @@
             justify-content: center;
             align-items: center;
             font-weight: bold;
-            margin: 0 10px;
+            margin: 5px;
             cursor: pointer;
             transition: transform 0.3s ease;
         }
@@ -135,6 +138,7 @@
             display: flex;
             justify-content: space-between;
             margin-top: 20px;
+            flex-wrap: wrap;
         }
 
         .stat-box {
@@ -143,7 +147,8 @@
             border-radius: 10px;
             text-align: center;
             flex: 1;
-            margin: 0 10px;
+            margin: 5px;
+            min-width: 120px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
         }
 
@@ -175,37 +180,36 @@
             text-align: center;
         }
 
+        .card-count {
+            font-size: 1.2rem;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
             }
 
             .game-table {
-                padding: 20px;
+                padding: 10px;
             }
 
             .card {
-                width: 80px;
-                height: 112px;
-                font-size: 1.5rem;
-            }
-
-            .controls {
-                flex-wrap: wrap;
-            }
-
-            button {
-                margin: 5px;
-            }
-
-            .bet-options {
-                flex-wrap: wrap;
+                width: 60px;
+                height: 84px;
+                font-size: 1.2rem;
             }
 
             .chip {
                 width: 50px;
                 height: 50px;
-                margin: 5px;
+                font-size: 0.9rem;
+            }
+
+            h1 {
+                font-size: 2rem;
             }
         }
 
@@ -252,7 +256,9 @@
             </button>
         </header>
         <div class="game-table">
+            <div class="card-count" id="dealerCount">Dealer: 0</div>
             <div class="cards" id="dealerCards"></div>
+            <div class="card-count" id="playerCount">Player: 0</div>
             <div class="cards" id="playerCards"></div>
             <div class="controls">
                 <button id="hitButton">Hit</button>
@@ -319,6 +325,8 @@
         const darkModeToggle = document.getElementById('darkModeToggle');
         const gameOverModal = document.getElementById('gameOverModal');
         const restartButton = document.getElementById('restartButton');
+        const dealerCountEl = document.getElementById('dealerCount');
+        const playerCountEl = document.getElementById('playerCount');
 
         const dealSound = new Howl({
             src: ['https://assets.mixkit.co/sfx/preview/mixkit-poker-card-placement-2001.mp3']
@@ -386,6 +394,8 @@
         function updateScores() {
             playerScore = calculateHandValue(playerHand);
             dealerScore = calculateHandValue(dealerHand);
+            playerCountEl.textContent = `Player: ${playerScore}`;
+            dealerCountEl.textContent = `Dealer: ${dealerScore}`;
         }
 
         function startNewGame() {
@@ -399,6 +409,7 @@
             gameProfit = 0;
             updateUI();
             enableBetting();
+            updateScores();
         }
 
         function dealInitialCards() {
