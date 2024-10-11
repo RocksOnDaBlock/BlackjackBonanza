@@ -192,6 +192,38 @@
             text-align: center;
         }
 
+        .game-message {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 24px;
+            text-align: center;
+            z-index: 1000;
+            animation: fadeInOut 3s ease-in-out;
+        }
+
+        .game-message.win {
+            background-color: rgba(76, 175, 80, 0.8);
+        }
+
+        .game-message.lose {
+            background-color: rgba(244, 67, 54, 0.8);
+        }
+
+        .game-message.tie {
+            background-color: rgba(255, 152, 0, 0.8);
+        }
+
+        @keyframes fadeInOut {
+            0%, 100% { opacity: 0; }
+            10%, 90% { opacity: 1; }
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 10px;
@@ -367,24 +399,24 @@
             return card;
         }
 
-        function calculateHandValue(hand) {
-            let value = 0;
+        function calculateScore(hand) {
+            let score = 0;
             let aceCount = 0;
             for (let card of hand) {
                 if (card.value === 'A') {
                     aceCount++;
-                    value += 11;
+                    score += 11;
                 } else if (['K', 'Q', 'J'].includes(card.value)) {
-                    value += 10;
+                    score += 10;
                 } else {
-                    value += parseInt(card.value);
+                    score += parseInt(card.value);
                 }
             }
-            while (value > 21 && aceCount > 0) {
-                value -= 10;
+            while (score > 21 && aceCount > 0) {
+                score -= 10;
                 aceCount--;
             }
-            return value;
+            return score;
         }
 
         function renderCard(card, container) {
@@ -396,11 +428,62 @@
             dealSound.play();
         }
 
+        function renderHands() {
+            dealerCardsEl.innerHTML = '';
+            playerCardsEl.innerHTML = '';
+            dealerHand.forEach((card, index) => {
+                if (index === 0) {
+                    renderCard({ value: '?', suit: '?' }, dealerCardsEl);
+                } else {
+                    renderCard(card, dealerCardsEl);
+                }
+            });
+            playerHand.forEach(card => renderCard(card, playerCardsEl));
+        }
+
         function updateScores() {
-            playerScore = calculateHandValue(playerHand);
-            dealerScore = calculateHandValue(dealerHand);
+            playerScore = calculateScore(playerHand);
+            dealerScore = calculateScore(dealerHand);
             playerCountEl.textContent = `Player: ${playerScore}`;
-            dealerCountEl.textContent = `Dealer: ${dealerScore}`;
+            dealerCountEl.textContent = `Dealer: ${dealerHand.length > 1 ? '?' : dealerScore}`;
+        }
+
+        function updateUI() {
+            balanceEl.textContent = `$${balance}`;
+            currentBetEl.textContent = `$${currentBet}`;
+            gameProfitEl.textContent = `$${gameProfit}`;
+            lifetimeProfitEl.textContent = `$${lifetimeProfit}`;
+        }
+
+        function updateBalance(amount) {
+            balance += amount;
+            gameProfit += amount;
+            lifetimeProfit += amount;
+            localStorage.setItem('lifetimeProfit', lifetimeProfit);
+            updateUI();
+        }
+
+        function placeBet(amount) {
+            if (balance >= amount) {
+                currentBet += amount;
+                balance -= amount;
+                updateUI();
+                const chip = document.querySelector(`.chip[data-value="${amount}"]`);
+                chip.classList.add('chip-bounce');
+                setTimeout(() => chip.classList.remove('chip-bounce'), 500);
+            }
+        }
+
+        function enableBetting() {
+            document.querySelectorAll('.chip').forEach(chip => {
+                chip.addEventListener('click', () => placeBet(parseInt(chip.dataset.value)));
+            });
+        }
+
+        function disableBetting() {
+            document.querySelectorAll('.chip').forEach(chip => {
+                chip.removeEventListener('click', () => placeBet(parseInt(chip.dataset.value)));
+            });
         }
 
         function startNewGame() {
@@ -418,6 +501,7 @@
             hitButton.disabled = true;
             standButton.disabled = true;
             dealButton.disabled = false;
+            hideMessage();
         }
 
         function dealInitialCards() {
@@ -426,17 +510,22 @@
             dealCard(playerHand);
             renderHands();
             updateScores();
-            checkForBlackjack();
+            checkForBlackjackOrBust();
             hitButton.disabled = false;
             standButton.disabled = false;
             dealButton.disabled = true;
         }
 
-        function renderHands() {
-            dealerCardsEl.innerHTML = '';
-            playerCardsEl.innerHTML = '';
-            dealerHand.forEach(card => renderCard(card, dealerCardsEl));
-            playerHand.forEach(card => renderCard(card, playerCardsEl));
+        function checkForBlackjackOrBust() {
+            if (playerScore === 21) {
+                updateBalance(Math.floor(currentBet * 2.5));
+                endRound('Blackjack! Player wins.', 'win');
+            } else if (playerScore > 21) {
+                endRound('Player busts! Dealer wins.', 'lose');
+            } else {
+                hitButton.disabled = false;
+                standButton.disabled = false;
+            }
         }
 
         function hit() {
@@ -444,130 +533,110 @@
             renderCard(card, playerCardsEl);
             updateScores();
             if (playerScore > 21) {
-                endRound('Player busts! Dealer wins.');
+                endRound('Player busts! Dealer wins.', 'lose');
             }
         }
 
         function stand() {
-            while (dealerScore < 17) {
-                const card = dealCard(dealerHand);
-                renderCard(card, dealerCardsEl);
-                dealerScore = calculateHandValue(dealerHand);
+            hitButton.disabled = true;
+            standButton.disabled = true;
+            dealerTurn();
+        }
+
+        function dealerTurn() {
+            let dealerAnimationPromise = Promise.resolve();
+
+            function dealerDraw() {
+                if (dealerScore < 17) {
+                    dealerAnimationPromise = dealerAnimationPromise.then(() => {
+                        return new Promise(resolve => {
+                            setTimeout(() => {
+                                const card = dealCard(dealerHand);
+                                renderCard(card, dealerCardsEl);
+                                updateScores();
+                                resolve();
+                            }, 1000);
+                        });
+                    }).then(dealerDraw);
+                } else {
+                    determineWinner();
+                }
             }
-            updateScores();
-            determineWinner();
+
+            dealerDraw();
         }
 
         function determineWinner() {
             let message;
+            let result;
             if (dealerScore > 21) {
                 message = 'Dealer busts! Player wins.';
+                result = 'win';
                 updateBalance(currentBet * 2);
             } else if (playerScore > dealerScore) {
                 message = 'Player wins!';
+                result = 'win';
                 updateBalance(currentBet * 2);
             } else if (playerScore < dealerScore) {
                 message = 'Dealer wins.';
+                result = 'lose';
             } else {
                 message = 'It\'s a tie!';
+                result = 'tie';
                 updateBalance(currentBet);
             }
-            endRound(message);
+            endRound(message, result);
         }
 
-        function checkForBlackjack() {
-            if (playerScore === 21 && playerHand.length === 2) {
-                updateBalance(Math.floor(currentBet * 2.5));
-                endRound('Blackjack! Player wins.');
-            }
-        }
-
-        function updateBalance(amount) {
-            const profit = amount - currentBet;
-            balance += amount;
-            gameProfit += profit;
-            lifetimeProfit += profit;
-            localStorage.setItem('lifetimeProfit', lifetimeProfit);
-            updateUI();
-        }
-
-        function placeBet(amount) {
-            if (balance >= amount) {
-                currentBet = amount;
-                balance -= amount;
-                updateUI();
-                dealInitialCards();
-                disableBetting();
-            }
-        }
-
-        function updateUI() {
-            balanceEl.textContent = `$${balance}`;
-            currentBetEl.textContent = `$${currentBet}`;
-            gameProfitEl.textContent = `$${gameProfit}`;
-            lifetimeProfitEl.textContent = `$${lifetimeProfit}`;
-        }
-
-        function endRound(message) {
-            alert(message);
-            if (message.includes('Player wins')) {
+        function endRound(message, result) {
+            showMessage(message, result);
+            if (result === 'win') {
                 winSound.play();
-            } else if (message.includes('Dealer wins')) {
+            } else if (result === 'lose') {
                 loseSound.play();
             }
-            startNewGame();
+            hitButton.disabled = true;
+            standButton.disabled = true;
+            setTimeout(() => {
+                hideMessage();
+                startNewGame();
+            }, 3000);
         }
 
-        function enableBetting() {
-            document.querySelectorAll('.chip').forEach(chip => {
-                chip.addEventListener('click', () => {
-                    const betAmount = parseInt(chip.dataset.value);
-                    placeBet(betAmount);
-                    chip.classList.add('chip-bounce');
-                    setTimeout(() => chip.classList.remove('chip-bounce'), 500);
-                });
-            });
+        function showMessage(message, result) {
+            const messageEl = document.createElement('div');
+            messageEl.className = `game-message ${result}`;
+            messageEl.textContent = message;
+            document.querySelector('.game-table').appendChild(messageEl);
         }
 
-        function disableBetting() {
-            document.querySelectorAll('.chip').forEach(chip => {
-                chip.removeEventListener('click', placeBet);
-            });
+        function hideMessage() {
+            const messageEl = document.querySelector('.game-message');
+            if (messageEl) {
+                messageEl.remove();
+            }
         }
 
         function toggleDarkMode() {
             document.body.classList.toggle('dark-mode');
-            const isDarkMode = document.body.classList.contains('dark-mode');
-            darkModeToggle.innerHTML = isDarkMode ? '<i class="fas fa-sun"></i>' : '<i class="fas fa-moon"></i>';
-            
-            if (isDarkMode) {
-                document.documentElement.style.setProperty('--primary-color', '#1a1a1a');
-                document.documentElement.style.setProperty('--secondary-color', '#2c2c2c');
-                document.documentElement.style.setProperty('--text-color', '#ffffff');
-                document.documentElement.style.setProperty('--felt-color', '#1e824c');
-            } else {
-                document.documentElement.style.setProperty('--primary-color', '#f0f0f0');
-                document.documentElement.style.setProperty('--secondary-color', '#ffffff');
-                document.documentElement.style.setProperty('--text-color', '#000000');
-                document.documentElement.style.setProperty('--felt-color', '#2ecc71');
-            }
+            const icon = darkModeToggle.querySelector('i');
+            icon.classList.toggle('fa-moon');
+            icon.classList.toggle('fa-sun');
         }
 
-        function checkGameOver() {
-            if (balance <= 0) {
-                gameOverModal.style.display = 'block';
-            }
-        }
-
+        darkModeToggle.addEventListener('click', toggleDarkMode);
         hitButton.addEventListener('click', hit);
         standButton.addEventListener('click', stand);
-        dealButton.addEventListener('click', startNewGame);
-        darkModeToggle.addEventListener('click', toggleDarkMode);
+        dealButton.addEventListener('click', () => {
+            if (currentBet > 0) {
+                disableBetting();
+                dealInitialCards();
+            }
+        });
         restartButton.addEventListener('click', () => {
-            balance = 1000;
-            gameProfit = 0;
-            updateUI();
             gameOverModal.style.display = 'none';
+            balance = 1000;
+            updateUI();
             startNewGame();
         });
 
