@@ -105,6 +105,11 @@
             transform: scale(0.95);
         }
 
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+
         .bet-options {
             display: flex;
             justify-content: center;
@@ -261,8 +266,8 @@
             <div class="card-count" id="playerCount">Player: 0</div>
             <div class="cards" id="playerCards"></div>
             <div class="controls">
-                <button id="hitButton">Hit</button>
-                <button id="standButton">Stand</button>
+                <button id="hitButton" disabled>Hit</button>
+                <button id="standButton" disabled>Stand</button>
                 <button id="dealButton">Deal</button>
             </div>
             <div class="bet-options">
@@ -410,6 +415,9 @@
             updateUI();
             enableBetting();
             updateScores();
+            hitButton.disabled = true;
+            standButton.disabled = true;
+            dealButton.disabled = false;
         }
 
         function dealInitialCards() {
@@ -419,6 +427,9 @@
             renderHands();
             updateScores();
             checkForBlackjack();
+            hitButton.disabled = false;
+            standButton.disabled = false;
+            dealButton.disabled = true;
         }
 
         function renderHands() {
@@ -441,8 +452,9 @@
             while (dealerScore < 17) {
                 const card = dealCard(dealerHand);
                 renderCard(card, dealerCardsEl);
-                updateScores();
+                dealerScore = calculateHandValue(dealerHand);
             }
+            updateScores();
             determineWinner();
         }
 
@@ -465,7 +477,7 @@
 
         function checkForBlackjack() {
             if (playerScore === 21 && playerHand.length === 2) {
-                updateBalance(currentBet * 2.5);
+                updateBalance(Math.floor(currentBet * 2.5));
                 endRound('Blackjack! Player wins.');
             }
         }
@@ -515,18 +527,12 @@
                     setTimeout(() => chip.classList.remove('chip-bounce'), 500);
                 });
             });
-            hitButton.disabled = true;
-            standButton.disabled = true;
-            dealButton.disabled = true;
         }
 
         function disableBetting() {
             document.querySelectorAll('.chip').forEach(chip => {
                 chip.removeEventListener('click', placeBet);
             });
-            hitButton.disabled = false;
-            standButton.disabled = false;
-            dealButton.disabled = true;
         }
 
         function toggleDarkMode() {
@@ -566,7 +572,6 @@
         });
 
         startNewGame();
-        updateUI();
     </script>
 </body>
 </html>
