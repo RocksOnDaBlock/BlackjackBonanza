@@ -58,6 +58,7 @@
             justify-content: center;
             margin-bottom: 20px;
             flex-wrap: wrap;
+            min-height: 120px;
         }
 
         .card {
@@ -83,6 +84,7 @@
             justify-content: center;
             margin-top: 20px;
             flex-wrap: wrap;
+            gap: 10px;
         }
 
         button {
@@ -115,6 +117,7 @@
             justify-content: center;
             margin-top: 20px;
             flex-wrap: wrap;
+            gap: 10px;
         }
 
         .chip {
@@ -128,6 +131,8 @@
             margin: 5px;
             cursor: pointer;
             transition: transform 0.3s ease;
+            color: white;
+            text-shadow: 1px 1px 2px rgba(0,0,0,0.5);
         }
 
         .chip:hover {
@@ -144,6 +149,7 @@
             justify-content: space-between;
             margin-top: 20px;
             flex-wrap: wrap;
+            gap: 10px;
         }
 
         .stat-box {
@@ -155,34 +161,6 @@
             margin: 5px;
             min-width: 120px;
             box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-        }
-
-        .dark-mode-toggle {
-            background: none;
-            border: none;
-            color: var(--text-color);
-            font-size: 1.5rem;
-            cursor: pointer;
-        }
-
-        .modal {
-            display: none;
-            position: fixed;
-            z-index: 1;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0,0,0,0.5);
-        }
-
-        .modal-content {
-            background-color: var(--secondary-color);
-            margin: 15% auto;
-            padding: 20px;
-            border-radius: 10px;
-            width: 300px;
-            text-align: center;
         }
 
         .card-count {
@@ -222,6 +200,13 @@
         @keyframes fadeInOut {
             0%, 100% { opacity: 0; }
             10%, 90% { opacity: 1; }
+        }
+
+        .hidden-card {
+            background-color: #b71540;
+            background-image: linear-gradient(45deg, #b71540 25%, #e15f41 25%, #e15f41 50%, #b71540 50%, #b71540 75%, #e15f41 75%, #e15f41 100%);
+            background-size: 56.57px 56.57px;
+            color: transparent;
         }
 
         @media (max-width: 768px) {
@@ -264,33 +249,12 @@
         .deal-animation {
             animation: dealCard 0.5s ease-out;
         }
-
-        @keyframes chipBounce {
-            0%, 100% { transform: translateY(0); }
-            50% { transform: translateY(-20px); }
-        }
-
-        .chip-bounce {
-            animation: chipBounce 0.5s ease-in-out;
-        }
-
-        @keyframes tablePulse {
-            0%, 100% { box-shadow: 0 10px 20px rgba(0,0,0,0.3); }
-            50% { box-shadow: 0 15px 30px rgba(0,0,0,0.5); }
-        }
-
-        .game-table {
-            animation: tablePulse 4s infinite;
-        }
     </style>
 </head>
 <body>
     <div class="container">
         <header>
             <h1>Blackjack Bonanza</h1>
-            <button class="dark-mode-toggle" id="darkModeToggle">
-                <i class="fas fa-moon"></i>
-            </button>
         </header>
         <div class="game-table">
             <div class="card-count" id="dealerCount">Dealer: 0</div>
@@ -321,19 +285,7 @@
                     <h3>Game Profit</h3>
                     <p id="gameProfit">$0</p>
                 </div>
-                <div class="stat-box">
-                    <h3>Lifetime Profit</h3>
-                    <p id="lifetimeProfit">$0</p>
-                </div>
             </div>
-        </div>
-    </div>
-
-    <div id="gameOverModal" class="modal">
-        <div class="modal-content">
-            <h2>Game Over</h2>
-            <p>You've run out of money!</p>
-            <button id="restartButton">Start New Game</button>
         </div>
     </div>
 
@@ -348,8 +300,9 @@
         let balance = 1000;
         let currentBet = 0;
         let gameProfit = 0;
-        let lifetimeProfit = parseInt(localStorage.getItem('lifetimeProfit')) || 0;
+        let gameInProgress = false;
 
+        // DOM Elements
         const dealerCardsEl = document.getElementById('dealerCards');
         const playerCardsEl = document.getElementById('playerCards');
         const hitButton = document.getElementById('hitButton');
@@ -358,24 +311,8 @@
         const balanceEl = document.getElementById('balance');
         const currentBetEl = document.getElementById('currentBet');
         const gameProfitEl = document.getElementById('gameProfit');
-        const lifetimeProfitEl = document.getElementById('lifetimeProfit');
-        const darkModeToggle = document.getElementById('darkModeToggle');
-        const gameOverModal = document.getElementById('gameOverModal');
-        const restartButton = document.getElementById('restartButton');
         const dealerCountEl = document.getElementById('dealerCount');
         const playerCountEl = document.getElementById('playerCount');
-
-        const dealSound = new Howl({
-            src: ['https://assets.mixkit.co/sfx/preview/mixkit-poker-card-placement-2001.mp3']
-        });
-
-        const winSound = new Howl({
-            src: ['https://assets.mixkit.co/sfx/preview/mixkit-winning-chimes-2015.mp3']
-        });
-
-        const loseSound = new Howl({
-            src: ['https://assets.mixkit.co/sfx/preview/mixkit-losing-bleeps-2026.mp3']
-        });
 
         function initializeDeck() {
             deck = [];
@@ -384,6 +321,7 @@
                     deck.push({ suit, value });
                 }
             }
+            shuffleDeck();
         }
 
         function shuffleDeck() {
@@ -393,18 +331,13 @@
             }
         }
 
-        function dealCard(hand) {
-            const card = deck.pop();
-            hand.push(card);
-            return card;
-        }
-
         function calculateScore(hand) {
             let score = 0;
-            let aceCount = 0;
+            let aces = 0;
+            
             for (let card of hand) {
                 if (card.value === 'A') {
-                    aceCount++;
+                    aces += 1;
                     score += 11;
                 } else if (['K', 'Q', 'J'].includes(card.value)) {
                     score += 10;
@@ -412,127 +345,114 @@
                     score += parseInt(card.value);
                 }
             }
-            while (score > 21 && aceCount > 0) {
+
+            while (score > 21 && aces > 0) {
                 score -= 10;
-                aceCount--;
+                aces -= 1;
             }
+
             return score;
         }
 
-        function renderCard(card, container) {
+        function createCardElement(card, isHidden = false) {
             const cardEl = document.createElement('div');
-            cardEl.className = 'card deal-animation';
-            cardEl.textContent = `${card.value}${card.suit}`;
-            cardEl.style.color = ['♥', '♦'].includes(card.suit) ? 'red' : 'black';
-            container.appendChild(cardEl);
-            dealSound.play();
+            cardEl.className = `card deal-animation ${isHidden ? 'hidden-card' : ''}`;
+            if (!isHidden) {
+                cardEl.textContent = `${card.value}${card.suit}`;
+                cardEl.style.color = ['♥', '♦'].includes(card.suit) ? 'red' : 'black';
+            }
+            return cardEl;
         }
 
-        function renderHands() {
+        function renderHands(hideDealer = true) {
             dealerCardsEl.innerHTML = '';
             playerCardsEl.innerHTML = '';
-            dealerHand.forEach((card, index) => {
-                if (index === 0) {
-                    renderCard({ value: '?', suit: '?' }, dealerCardsEl);
-                } else {
-                    renderCard(card, dealerCardsEl);
-                }
-            });
-            playerHand.forEach(card => renderCard(card, playerCardsEl));
-        }
 
-        function updateScores() {
+            // Render dealer's cards
+            dealerHand.forEach((card, index) => {
+                const isHidden = hideDealer && index === 0;
+                dealerCardsEl.appendChild(createCardElement(card, isHidden));
+            });
+
+            // Render player's cards
+            playerHand.forEach(card => {
+                playerCardsEl.appendChild(createCardElement(card));
+            });
+
+            // Update scores
             playerScore = calculateScore(playerHand);
             dealerScore = calculateScore(dealerHand);
+            
             playerCountEl.textContent = `Player: ${playerScore}`;
-            dealerCountEl.textContent = `Dealer: ${dealerHand.length > 1 ? '?' : dealerScore}`;
+            if (hideDealer) {
+                const visibleDealerScore = calculateScore(dealerHand.slice(1));
+                dealerCountEl.textContent = `Dealer: ${visibleDealerScore}`;
+            } else {
+                dealerCountEl.textContent = `Dealer: ${dealerScore}`;
+            }
+        }
+
+        function dealCard(hand) {
+            if (deck.length === 0) {
+                initializeDeck();
+            }
+            const card = deck.pop();
+            hand.push(card);
+            return card;
+        }
+
+        function placeBet(amount) {
+            if (!gameInProgress && balance >= amount) {
+                currentBet = amount;
+                balance -= amount;
+                updateUI();
+            }
         }
 
         function updateUI() {
             balanceEl.textContent = `$${balance}`;
             currentBetEl.textContent = `$${currentBet}`;
             gameProfitEl.textContent = `$${gameProfit}`;
-            lifetimeProfitEl.textContent = `$${lifetimeProfit}`;
         }
 
-        function updateBalance(amount) {
-            balance += amount;
-            gameProfit += amount;
-            lifetimeProfit += amount;
-            localStorage.setItem('lifetimeProfit', lifetimeProfit);
-            updateUI();
-        }
-
-        function placeBet(amount) {
-            if (balance >= amount) {
-                currentBet += amount;
-                balance -= amount;
-                updateUI();
-                const chip = document.querySelector(`.chip[data-value="${amount}"]`);
-                chip.classList.add('chip-bounce');
-                setTimeout(() => chip.classList.remove('chip-bounce'), 500);
-            }
-        }
-
-        function enableBetting() {
-            document.querySelectorAll('.chip').forEach(chip => {
-                chip.addEventListener('click', () => placeBet(parseInt(chip.dataset.value)));
-            });
-        }
-
-        function disableBetting() {
-            document.querySelectorAll('.chip').forEach(chip => {
-                chip.removeEventListener('click', () => placeBet(parseInt(chip.dataset.value)));
-            });
-        }
-
-        function startNewGame() {
-            initializeDeck();
-            shuffleDeck();
+        function startNewHand() {
+            if (currentBet === 0) return;
+            
+            gameInProgress = true;
             playerHand = [];
             dealerHand = [];
-            dealerCardsEl.innerHTML = '';
-            playerCardsEl.innerHTML = '';
-            currentBet = 0;
-            gameProfit = 0;
-            updateUI();
-            enableBetting();
-            updateScores();
-            hitButton.disabled = true;
-            standButton.disabled = true;
-            dealButton.disabled = false;
-            hideMessage();
-        }
-
-        function dealInitialCards() {
+            
+            // Deal initial cards
             dealCard(playerHand);
             dealCard(dealerHand);
             dealCard(playerHand);
-            renderHands();
-            updateScores();
-            checkForBlackjackOrBust();
+            dealCard(dealerHand);
+            
+            renderHands(true);
+            
             hitButton.disabled = false;
             standButton.disabled = false;
             dealButton.disabled = true;
+            
+            checkForBlackjack();
         }
 
-        function checkForBlackjackOrBust() {
+        function checkForBlackjack() {
+            playerScore = calculateScore(playerHand);
+            dealerScore = calculateScore(dealerHand);
+
             if (playerScore === 21) {
-                updateBalance(Math.floor(currentBet * 2.5));
-                endRound('Blackjack! Player wins.', 'win');
-            } else if (playerScore > 21) {
-                endRound('Player busts! Dealer wins.', 'lose');
-            } else {
-                hitButton.disabled = false;
-                standButton.disabled = false;
+                endRound('Blackjack! Player wins!', 'win');
+                balance += currentBet * 2.5;
+                gameProfit += currentBet * 1.5;
             }
         }
 
         function hit() {
-            const card = dealCard(playerHand);
-            renderCard(card, playerCardsEl);
-            updateScores();
-            if (playerScore > 21) {
+            dealCard(playerHand);
+            renderHands(true);
+            
+            if (calculateScore(playerHand) > 21) {
                 endRound('Player busts! Dealer wins.', 'lose');
             }
         }
@@ -540,66 +460,48 @@
         function stand() {
             hitButton.disabled = true;
             standButton.disabled = true;
-            dealerTurn();
+            
+            renderHands(false);
+            
+            dealerPlay();
         }
 
-        function dealerTurn() {
-            let dealerAnimationPromise = Promise.resolve();
-
-            function dealerDraw() {
-                if (dealerScore < 17) {
-                    dealerAnimationPromise = dealerAnimationPromise.then(() => {
-                        return new Promise(resolve => {
-                            setTimeout(() => {
-                                const card = dealCard(dealerHand);
-                                renderCard(card, dealerCardsEl);
-                                updateScores();
-                                resolve();
-                            }, 1000);
-                        });
-                    }).then(dealerDraw);
-                } else {
-                    determineWinner();
-                }
+        function dealerPlay() {
+            while (calculateScore(dealerHand) < 17) {
+                dealCard(dealerHand);
+                renderHands(false);
             }
-
-            dealerDraw();
+            
+            determineWinner();
         }
 
         function determineWinner() {
-            let message;
-            let result;
-            if (dealerScore > 21) {
-                message = 'Dealer busts! Player wins.';
-                result = 'win';
-                updateBalance(currentBet * 2);
-            } else if (playerScore > dealerScore) {
-                message = 'Player wins!';
-                result = 'win';
-                updateBalance(currentBet * 2);
-            } else if (playerScore < dealerScore) {
-                message = 'Dealer wins.';
-                result = 'lose';
+            const finalPlayerScore = calculateScore(playerHand);
+            const finalDealerScore = calculateScore(dealerHand);
+            
+            if (finalDealerScore > 21) {
+                balance += currentBet * 2;
+                gameProfit += currentBet;
+                endRound('Dealer busts! Player wins!', 'win');
+            } else if (finalDealerScore > finalPlayerScore) {
+                endRound('Dealer wins!', 'lose');
+            } else if (finalPlayerScore > finalDealerScore) {
+                balance += currentBet * 2;
+                gameProfit += currentBet;
+                endRound('Player wins!', 'win');
             } else {
-                message = 'It\'s a tie!';
-                result = 'tie';
-                updateBalance(currentBet);
+                balance += currentBet;
+                endRound("It's a tie!", 'tie');
             }
-            endRound(message, result);
         }
 
         function endRound(message, result) {
+            gameInProgress = false;
             showMessage(message, result);
-            if (result === 'win') {
-                winSound.play();
-            } else if (result === 'lose') {
-                loseSound.play();
-            }
-            hitButton.disabled = true;
-            standButton.disabled = true;
+            
             setTimeout(() => {
                 hideMessage();
-                startNewGame();
+                resetGame();
             }, 3000);
         }
 
@@ -617,30 +519,29 @@
             }
         }
 
-        function toggleDarkMode() {
-            document.body.classList.toggle('dark-mode');
-            const icon = darkModeToggle.querySelector('i');
-            icon.classList.toggle('fa-moon');
-            icon.classList.toggle('fa-sun');
+        function resetGame() {
+            currentBet = 0;
+            hitButton.disabled = true;
+            standButton.disabled = true;
+            dealButton.disabled = false;
+            updateUI();
+            renderHands(true);
         }
 
-        darkModeToggle.addEventListener('click', toggleDarkMode);
+        // Event Listeners
         hitButton.addEventListener('click', hit);
         standButton.addEventListener('click', stand);
-        dealButton.addEventListener('click', () => {
-            if (currentBet > 0) {
-                disableBetting();
-                dealInitialCards();
-            }
-        });
-        restartButton.addEventListener('click', () => {
-            gameOverModal.style.display = 'none';
-            balance = 1000;
-            updateUI();
-            startNewGame();
+        dealButton.addEventListener('click', startNewHand);
+        
+        document.querySelectorAll('.chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+                placeBet(parseInt(chip.dataset.value));
+            });
         });
 
-        startNewGame();
+        // Initialize the game
+        initializeDeck();
+        resetGame();
     </script>
 </body>
 </html>
